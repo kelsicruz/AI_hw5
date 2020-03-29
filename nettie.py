@@ -14,6 +14,14 @@ from AIPlayerUtils import *
 # Artificial Intelligence Homework 5
 ##
 
+## GLOBAL VARIABLES ##
+e = 2.71828
+learningRate = 0.1
+weights = []
+desiredOutcome = 1 # We won
+
+######################
+
 ##
 #AIPlayer
 #Description: The responsbility of this class is to interact with the game by
@@ -130,3 +138,44 @@ class AIPlayer(Player):
     def registerWin(self, hasWon):
         #method templaste, not implemented
         pass
+
+
+    def neuralnet(self, currentState):
+        me = currentState.whoseTurn
+        if (me == PLAYER_ONE):
+            enemy = PLAYER_TWO
+        else :
+            enemy = PLAYER_ONE
+        
+        inputs = []
+
+        myInv = getCurrPlayerInventory(currentState)
+        foodScore = myInv.foodCount
+
+        enQueen = getAntList(currentState, enemy, (QUEEN,))
+
+        enHill = getConstrList(currentState, enemy, (ANTHILL,))[0]
+
+        inputs.append(1) # bias input
+        inputs.append(foodScore/11)
+        inputs.append(enQueen/10)
+        inputs.append(enHill.captureHealth/3)
+
+        weights = [0, 2, -1, -1] # hard coded for now, will need an init function later
+
+        fun = 0
+        for i in range(len(inputs)): # this could be wrong
+            fun += inputs[i]*weights[i]
+        
+        output = sigmoid(self, fun)
+
+        steepness = output * (1 - output) # derivative = g(x) * (1-g(x)), taking shortcut rn
+
+        # readjust weights 
+        for i in range(len(weights)):
+            # may have to change "desiredOutcome" to something else
+            weights[i] = weights[i] + (learningRate)(desiredOutcome - output)(steepness)(inputs[i])
+
+    def sigmoid(self, x):
+        return 1/(1 + e^(-x))
+    
