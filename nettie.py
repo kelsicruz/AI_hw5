@@ -156,10 +156,19 @@ class AIPlayer(Player):
 
         enHill = getConstrList(currentState, enemy, (ANTHILL,))[0]
 
-        inputs.append(1) # bias input
+        myQueen = getAntList(currentState, me, (QUEEN,))[0]
+        myQueenHealth = myQueen.health
+
+        myHill = getConstrList(testState, me, (ANTHILL,))[0]
+        myHillHealth = myHill.health
+
+        inputs.append(1) # bias input off
         inputs.append(foodScore/11)
         inputs.append(enQueen/10)
         inputs.append(enHill.captureHealth/3)
+        inputs.append(1) # bias input def
+        inputs.append(myQueenHealth/10)
+        inputs.append(myHillHealth/3)
 
         weights = [0, 2, -1, -1] # hard coded for now, will need an init function later
 
