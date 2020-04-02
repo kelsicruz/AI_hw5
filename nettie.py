@@ -8,112 +8,96 @@ from Ant import UNIT_STATS
 from Move import Move
 from GameState import *
 from AIPlayerUtils import *
+import math
 
-##
-# Authors: James Conn and Kelsi Cruz
-# Artificial Intelligence Homework 5
-##
-
-## GLOBAL VARIABLES ##
-e = 2.71828
+#global vars
+bestFood = None
+avgDistToFoodPoint = None
+hiddenNetwork = [[]]
+outputNetwork = [[]]
+biasWeights = [0, 0, 0]
 learningRate = 0.1
-weights = []
-desiredOutcome = 1 # We won
-
-######################
-
+e = 2.71828
 ##
 #AIPlayer
 #Description: The responsbility of this class is to interact with the game by
-#deciding a valid move based on a given game state. This class has methods that
-#will be implemented by students in Dr. Nuxoll's AI course.
+#deciding a valid move based on a given game state.  This class has methods
+#that
+#will be implemented by students in Dr.  Nuxoll's AI course.
 #
 #Variables:
 #   playerId - The id of the player.
 ##
 class AIPlayer(Player):
-
-    #__init__
-    #Description: Creates a new Player
-    #
-    #Parameters:
-    #   inputPlayerId - The id to give the new player (int)
-    #   cpy           - whether the player is a copy (when playing itself)
-    ##
     def __init__(self, inputPlayerId):
-        super(AIPlayer,self).__init__(inputPlayerId, "Nettie")
-    
-    ##
-    #getPlacement
-    #
-    #Description: called during setup phase for each Construction that
-    #   must be placed by the player.  These items are: 1 Anthill on
-    #   the player's side; 1 tunnel on player's side; 9 grass on the
-    #   player's side; and 2 food on the enemy's side.
-    #
-    #Parameters:
-    #   construction - the Construction to be placed.
-    #   currentState - the state of the game at this point in time.
-    #
-    #Return: The coordinates of where the construction is to be placed
-    ##
+        super(AIPlayer, self).__init__(inputPlayerId, "UtilityAgent_gieseman21_cruzk20")
+        self.resetPlayerData()
+        
+    def resetPlayerData(self):
+        global bestFood
+        global avgDistToFoodPoint
+        bestFood = None
+        avgDistToFoodPoint = None
+        self.myTunnel = None
+        self.myHill = None
+
     def getPlacement(self, currentState):
-        numToPlace = 0
-        #implemented by students to return their next move
-        if currentState.phase == SETUP_PHASE_1:    #stuff on my side
-            numToPlace = 11
+    
+        me = currentState.whoseTurn
+        
+        if currentState.phase == SETUP_PHASE_1:
+            #Hill, Tunnel, Grass
+            self.resetPlayerData()
+            self.myNest = (2,1)
+            self.myTunnel = (7,1)
+            return [(2,1), (7, 1), 
+                    (0,3), (1,3), (2,3), (3,3), \
+                    (4,3), (5,3), (6,3), \
+                    (8,3), (9,3)]
+        elif currentState.phase == SETUP_PHASE_2:
             moves = []
-            for i in range(0, numToPlace):
-                move = None
-                while move == None:
-                    #Choose any x location
-                    x = random.randint(0, 9)
-                    #Choose any y location on your side of the board
-                    y = random.randint(0, 3)
-                    #Set the move if this space is empty
-                    if currentState.board[x][y].constr == None and (x, y) not in moves:
-                        move = (x, y)
-                        #Just need to make the space non-empty. So I threw whatever I felt like in there.
-                        currentState.board[x][y].constr == True
-                moves.append(move)
+            for y in range(6, 10):
+                for x in range(0,10):
+                    if currentState.board[x][y].constr == None and len(moves) < 2:
+                        moves.append((x,y))
             return moves
-        elif currentState.phase == SETUP_PHASE_2:   #stuff on foe's side
-            numToPlace = 2
-            moves = []
-            for i in range(0, numToPlace):
-                move = None
-                while move == None:
-                    #Choose any x location
-                    x = random.randint(0, 9)
-                    #Choose any y location on enemy side of the board
-                    y = random.randint(6, 9)
-                    #Set the move if this space is empty
-                    if currentState.board[x][y].constr == None and (x, y) not in moves:
-                        move = (x, y)
-                        #Just need to make the space non-empty. So I threw whatever I felt like in there.
-                        currentState.board[x][y].constr == True
-                moves.append(move)
-            return moves
-        else:
-            return [(0, 0)]
+            
+        else:            
+            return None  #should never happen
     
     ##
     #getMove
     #Description: Gets the next move from the Player.
     #
     #Parameters:
-    #   currentState - The state of the current game waiting for the player's move (GameState)
+    #   currentState - The state of the current game waiting for the player's
+    #   move
+    #   (GameState)
     #
     #Return: The Move to be made
     ##
     def getMove(self, currentState):
-        moves = listAllLegalMoves(currentState)
-        selectedMove = moves[random.randint(0,len(moves) - 1)];
+        me = currentState.whoseTurn
+        workerAnts = getAntList(currentState, me, (WORKER,))
+        global bestFood
+        global avgDistToFoodPoint
 
-        #don't do a build move if there are already 3+ ants
-        numAnts = len(currentState.inventories[currentState.whoseTurn].ants)
-        while (selectedMove.moveType == BUILD and numAnts >= 3):
-            selectedMove = moves[random.randint(0,len(moves) - 1)];
+        #starts by assigning some variables to improve evaluation of proximity to scoring 11 food
+        if (me == PLAYER_ONE):
+            enemy = PLAYER_TWO
+        else :
+            enemy = PLAYER_ONE
+        
+        if (self.myTunnel == None):
+            self.myTunnel = getConstrList(currentState, me, (TUNNEL,))[0].coords
+            
+        if (self.myHill == None):
+            self.myHill = getConstrList(currentState, me, (ANTHILL,))[0].coords
+        
+        if (bestFood == None and avgDistToFoodPoint == None):
+            assignGlobalVars(currentState, self.myTunnel, self.myHill)
+
+        selectedMove = getMove(currentState)
             
         return selectedMove
     
@@ -124,11 +108,11 @@ class AIPlayer(Player):
     #Parameters:
     #   currentState - A clone of the current state (GameState)
     #   attackingAnt - The ant currently making the attack (Ant)
-    #   enemyLocation - The Locations of the Enemies that can be attacked (Location[])
+    #   enemyLocation - The Locations of the Enemies that can be attacked
+    #   (Location[])
     ##
     def getAttack(self, currentState, attackingAnt, enemyLocations):
-        #Attack a random enemy.
-        return enemyLocations[random.randint(0, len(enemyLocations) - 1)]
+        return enemyLocations[0]
 
     ##
     #registerWin
@@ -139,15 +123,180 @@ class AIPlayer(Player):
         #method templaste, not implemented
         pass
 
+#in the current version, only evaluates proximity to winning via food collection
+def heuristicStepsToGoal(currentState):
+    me = currentState.whoseTurn
+    myQueen = getAntList(currentState, me, (QUEEN,))[0]
 
-    def neuralnet(self, currentState):
+    #if a state has a dead queen, it should be avoided!!!
+    if (myQueen.health == 0):
+        return 99999999
+
+    stepsToGoal = stepsToFoodGoal(currentState)
+    
+    #add the enemy health to our heuristic measure in order to encourage attacks
+    stepsToGoal += getTotalEnemyHealth(currentState)
+
+    return stepsToGoal
+        
+
+#helper method for heuristicStepsToGoal, evaluates distance to win by food
+def stepsToFoodGoal(currentState):
+    #get the board
+    # fastClone(currentState)
+        
+    #get numWorkers
+    global avgDistToFoodPoint
+    global bestFood
+
+    myInv = getCurrPlayerInventory(currentState)
+    foodScore = myInv.foodCount
+    me = currentState.whoseTurn
+    workerAnts = getAntList(currentState, me, (WORKER,))
+
+    #cant collect food without workers
+    if (len(workerAnts) == 0):
+        return 99999999
+
+    #in assignGlobalVars, we assigned avgDistToFoodPoint
+    #we multiply that by the number of food points we need
+    stepsToFoodGoal = 0
+    for i in range(11-foodScore):
+        stepsToFoodGoal += avgDistToFoodPoint
+    
+    #to that, we add the distance from scoring a food point of the ant that is closest to scoring one
+    minStepsToFoodPoint = 99999999
+    for worker in workerAnts:
+        temp = stepsToFoodPoint(currentState, worker)
+        if (temp < minStepsToFoodPoint):
+            minStepsToFoodPoint = temp
+
+    stepsToFoodGoal += minStepsToFoodPoint
+    return stepsToFoodGoal
+    
+        
+        
+### Calculates the necessary steps to get +1 food point ###   
+def stepsToFoodPoint(currentState, workerAnt):
+    global bestFood
+    #Check if the ant is carrying food, then we only need steps to nearest constr
+    if (workerAnt.carrying):
+        dist = stepsToReach(currentState, workerAnt.coords, bestFood[1])
+    #Otherwise, calculate the entire cycle the ant would need to complete to get +1 food point
+    else:
+        dist = stepsToReach(currentState, workerAnt.coords, bestFood[0].coords) + stepsToReach(currentState, bestFood[0].coords, bestFood[1])
+        
+    return dist
+
+#not yet implemented
+def stepsToQueenGoal(currentState):
+    pass
+
+#not yet implemented   
+def stepsToAntHillGoal(currentState):
+    pass
+    
+#uses MoveNode objects to represent the outcome of all possible moves
+#returns the move associated with the MoveNode that has the lowest (best) utility
+def getMove(currentState):
+    moves = listAllLegalMoves(currentState)
+
+    moveNodes = []
+
+    for move in moves:
+        nextState = getNextState(currentState, move)
+        stateUtility = heuristicStepsToGoal(nextState)
+        node = MoveNode(move, nextState)
+        node.setUtility(stateUtility)
+        moveNodes.append(node)
+        
+    bestMoveNode = bestMove(moveNodes)
+    retMove = bestMoveNode.move
+            
+    return retMove
+
+#returns the MoveNode with the lowest (best) utility given a list of MoveNodes
+def bestMove(moveNodes):
+    bestNodeUtility = 99999999
+    bestNode = moveNodes[0]
+    for moveNode in moveNodes:
+        if (moveNode.utility < bestNodeUtility):
+            bestNode = moveNode
+            bestNodeUtility = moveNode.utility
+    
+    return bestNode
+
+#assign the vars bestFood and avgDistToFoodPoint, which are used in determining stepsToFoodGoal
+def assignGlobalVars(currentState, myTunnel, myHill):
+    
+    global bestFood
+    global avgDistToFoodPoint
+
+    foods = getConstrList(currentState, None, (FOOD,))
+    bestTunnelDist = 50
+    bestHillDist = 50
+    bestTunnelFood = None
+    bestHillFood = None
+            
+    for food in foods:
+        dist = stepsToReach(currentState, myTunnel, food.coords)
+        if (dist < bestTunnelDist) :
+            bestTunnelFood = food
+            bestTunnelDist = dist
+        dist = stepsToReach(currentState, myHill, food.coords)
+        if (dist < bestHillDist) :
+            bestHillFood = food
+            bestHillDist = dist
+            
+    if (bestHillDist < bestTunnelDist):
+        bestFood = (bestHillFood, myHill)
+    else :
+        bestFood = (bestTunnelFood, myTunnel)
+
+    me = currentState.whoseTurn
+    workerAnts = getAntList(currentState, me, (WORKER,))
+
+    for worker in workerAnts:
+        foodToTunnelDist = stepsToReach(currentState, bestFood[0].coords, bestFood[1])
+        marginalFoodPointCost = foodToTunnelDist * 2
+    avgDistToFoodPoint = marginalFoodPointCost
+    
+#sums health of all enemy ants. Used to encourage attack moves
+def getTotalEnemyHealth(currentState):
+    me = currentState.whoseTurn
+    if (me == PLAYER_ONE):
+        enemy = PLAYER_TWO
+    else :
+        enemy = PLAYER_ONE
+    
+    enemyAnts = getAntList(currentState, enemy, (WORKER,QUEEN,DRONE,SOLDIER,R_SOLDIER))
+    totalEnemyHealth = 0
+    for ant in enemyAnts:
+        totalEnemyHealth += ant.health
+        
+    return totalEnemyHealth
+
+class MoveNode():
+    
+    def __init__(self, move, state):
+        self.move = move
+        self.state = state
+        self.depth = 1
+        self.utility = None
+        self.parent = None
+        
+    def setUtility(self, newUtility):
+        self.utility = newUtility + self.depth
+
+    def __str__(self):
+        return "Move: " + str(self.move) + ", Utility: " + str(self.utility)
+    
+    def initHiddenNetwork(self, currentState):
         me = currentState.whoseTurn
         if (me == PLAYER_ONE):
             enemy = PLAYER_TWO
         else :
             enemy = PLAYER_ONE
-        
-        inputs = []
 
         myInv = getCurrPlayerInventory(currentState)
         foodScore = myInv.foodCount
@@ -156,26 +305,84 @@ class AIPlayer(Player):
 
         enHill = getConstrList(currentState, enemy, (ANTHILL,))[0]
 
-        inputs.append(1) # bias input
-        inputs.append(foodScore/11)
-        inputs.append(enQueen/10)
-        inputs.append(enHill.captureHealth/3)
+        myQueen = getAntList(currentState, me, (QUEEN,))[0]
+        # myQueenHealth = myQueen.health
 
-        weights = [0, 2, -1, -1] # hard coded for now, will need an init function later
+        myHill = getConstrList(currentState, me, (ANTHILL,))[0]
+        # myHillHealth = myHill.captureHealth
 
-        fun = 0
-        for i in range(len(inputs)): # this could be wrong
-            fun += inputs[i]*weights[i]
+        return hiddenNetwork[[foodScore/11, 2, 0], [enQueen.health/10, -1, 0], [enHill.captureHealth/3, -1, 0], [myQueen.health/10, 0, 1], [myHill.captureHealth/3], 0, 1]
+    
+    def initOutputNetwork(self, currentState, hiddenNetwork):
+        initHiddenNetwork(self, currentState)
+
+        me = currentState.whoseTurn
+        if (me == PLAYER_ONE):
+            enemy = PLAYER_TWO
+        else :
+            enemy = PLAYER_ONE
+
+        x1 = 1 * biasWeights[0]
+        x2 = 1 * biasWeights[1]
+
+        for i in range(len(hiddenNetwork)):
+            x1 += hiddenNetwork[i][0] * hiddenNetwork[i][1]
         
-        output = sigmoid(self, fun)
+        for i in range(len(hiddenNetwork)):
+            x2 += hiddenNetwork[i][0] * hiddenNetwork[i][2]
 
-        steepness = output * (1 - output) # derivative = g(x) * (1-g(x)), taking shortcut rn
+        return outputNetwork[[sigmoid(self, x1), 1], [sigmoid(self, x2), 1]]
 
-        # readjust weights 
-        for i in range(len(weights)):
-            # may have to change "desiredOutcome" to something else
-            weights[i] = weights[i] + (learningRate)(desiredOutcome - output)(steepness)(inputs[i])
+    def evaluateState(self, currentState):
+        output = 1 * biasWeights[2]
 
+        for i in range(len(outputNetwork)):
+            output += outputNetwork[i][0] * outputNetwork[i][1]
+
+        return sigmoid(self, output)
+    
     def sigmoid(self, x):
         return 1/(1 + e^(-x))
+    
+    def backPropagation(self, currentState):
+        # might change 1 later
+        netOutput = evaluateState(self, currentState)
+        error = 1 - netOutput
+        print(str(error))
+
+        errorTerm = error * netOutput * (1 - netOutput)
+
+        topError = errorTerm * outputNetwork[0][1]
+        bottomError = errorTerm * outputNetwork[1][1]
+        
+        # may need to fix last part in parens
+        for i in range(len(hiddenNetwork)):
+            hiddenNetwork[i][1] += learningRate * topError * ( netOutput * (1 - netOutput) * outputNetwork[0][0] )
+
+
+        # commenting out for now
+    # def neuralnet(self, currentState):
+
+    #     # inputs.append(1) # bias input off
+    #     # inputs.append(foodScore/11)
+    #     # inputs.append(enQueen/10)
+    #     # inputs.append(enHill.captureHealth/3)
+    #     # inputs.append(1) # bias input def
+    #     # inputs.append(myQueenHealth/10)
+    #     # inputs.append(myHillHealth/3)
+
+    #     weights = [0, 2, -1, -1] # hard coded for now, will need an init function later
+
+    #     fun = 0
+    #     for i in range(len(inputs)): # this could be wrong
+    #         fun += inputs[i]*weights[i]
+        
+    #     output = sigmoid(self, fun)
+
+    #     steepness = output * (1 - output) # derivative = g(x) * (1-g(x)), taking shortcut rn
+
+    #     # readjust weights 
+    #     for i in range(len(weights)):
+    #         # may have to change "desiredOutcome" to something else
+    #         weights[i] = weights[i] + (learningRate)(desiredOutcome - output)(steepness)(inputs[i])
     
