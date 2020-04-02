@@ -13,6 +13,11 @@ import math
 #global vars
 bestFood = None
 avgDistToFoodPoint = None
+hiddenNetwork = [[]]
+outputNetwork = [[]]
+biasWeights = [0, 0, 0]
+learningRate = 0.1
+e = 2.71828
 ##
 #AIPlayer
 #Description: The responsbility of this class is to interact with the game by
@@ -286,15 +291,12 @@ class MoveNode():
     def __str__(self):
         return "Move: " + str(self.move) + ", Utility: " + str(self.utility)
     
-
-    def neuralnet(self, currentState):
+    def initHiddenNetwork(self, currentState):
         me = currentState.whoseTurn
         if (me == PLAYER_ONE):
             enemy = PLAYER_TWO
         else :
             enemy = PLAYER_ONE
-        
-        inputs = []
 
         myInv = getCurrPlayerInventory(currentState)
         foodScore = myInv.foodCount
@@ -304,34 +306,83 @@ class MoveNode():
         enHill = getConstrList(currentState, enemy, (ANTHILL,))[0]
 
         myQueen = getAntList(currentState, me, (QUEEN,))[0]
-        myQueenHealth = myQueen.health
+        # myQueenHealth = myQueen.health
 
-        myHill = getConstrList(testState, me, (ANTHILL,))[0]
-        myHillHealth = myHill.health
+        myHill = getConstrList(currentState, me, (ANTHILL,))[0]
+        # myHillHealth = myHill.captureHealth
 
-        inputs.append(1) # bias input off
-        inputs.append(foodScore/11)
-        inputs.append(enQueen/10)
-        inputs.append(enHill.captureHealth/3)
-        inputs.append(1) # bias input def
-        inputs.append(myQueenHealth/10)
-        inputs.append(myHillHealth/3)
+        return hiddenNetwork[[foodScore/11, 2, 0], [enQueen.health/10, -1, 0], [enHill.captureHealth/3, -1, 0], [myQueen.health/10, 0, 1], [myHill.captureHealth/3], 0, 1]
+    
+    def initOutputNetwork(self, currentState, hiddenNetwork):
+        initHiddenNetwork(self, currentState)
 
-        weights = [0, 2, -1, -1] # hard coded for now, will need an init function later
+        me = currentState.whoseTurn
+        if (me == PLAYER_ONE):
+            enemy = PLAYER_TWO
+        else :
+            enemy = PLAYER_ONE
 
-        fun = 0
-        for i in range(len(inputs)): # this could be wrong
-            fun += inputs[i]*weights[i]
+        x1 = 1 * biasWeights[0]
+        x2 = 1 * biasWeights[1]
+
+        for i in range(len(hiddenNetwork)):
+            x1 += hiddenNetwork[i][0] * hiddenNetwork[i][1]
         
-        output = sigmoid(self, fun)
+        for i in range(len(hiddenNetwork)):
+            x2 += hiddenNetwork[i][0] * hiddenNetwork[i][2]
 
-        steepness = output * (1 - output) # derivative = g(x) * (1-g(x)), taking shortcut rn
+        return outputNetwork[[sigmoid(self, x1), 1], [sigmoid(self, x2), 1]]
 
-        # readjust weights 
-        for i in range(len(weights)):
-            # may have to change "desiredOutcome" to something else
-            weights[i] = weights[i] + (learningRate)(desiredOutcome - output)(steepness)(inputs[i])
+    def evaluateState(self, currentState):
+        output = 1 * biasWeights[2]
 
+        for i in range(len(outputNetwork)):
+            output += outputNetwork[i][0] * outputNetwork[i][1]
+
+        return sigmoid(self, output)
+    
     def sigmoid(self, x):
         return 1/(1 + e^(-x))
+    
+    def backPropagation(self, currentState):
+        # might change 1 later
+        netOutput = evaluateState(self, currentState)
+        error = 1 - netOutput
+        print(str(error))
+
+        errorTerm = error * netOutput * (1 - netOutput)
+
+        topError = errorTerm * outputNetwork[0][1]
+        bottomError = errorTerm * outputNetwork[1][1]
+        
+        # may need to fix last part in parens
+        for i in range(len(hiddenNetwork)):
+            hiddenNetwork[i][1] += learningRate * topError * ( netOutput * (1 - netOutput) * outputNetwork[0][0] )
+
+
+        # commenting out for now
+    # def neuralnet(self, currentState):
+
+    #     # inputs.append(1) # bias input off
+    #     # inputs.append(foodScore/11)
+    #     # inputs.append(enQueen/10)
+    #     # inputs.append(enHill.captureHealth/3)
+    #     # inputs.append(1) # bias input def
+    #     # inputs.append(myQueenHealth/10)
+    #     # inputs.append(myHillHealth/3)
+
+    #     weights = [0, 2, -1, -1] # hard coded for now, will need an init function later
+
+    #     fun = 0
+    #     for i in range(len(inputs)): # this could be wrong
+    #         fun += inputs[i]*weights[i]
+        
+    #     output = sigmoid(self, fun)
+
+    #     steepness = output * (1 - output) # derivative = g(x) * (1-g(x)), taking shortcut rn
+
+    #     # readjust weights 
+    #     for i in range(len(weights)):
+    #         # may have to change "desiredOutcome" to something else
+    #         weights[i] = weights[i] + (learningRate)(desiredOutcome - output)(steepness)(inputs[i])
     
