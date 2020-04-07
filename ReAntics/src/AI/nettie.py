@@ -29,12 +29,18 @@ class AIPlayer(Player):
     def __init__(self, inputPlayerId):
         super(AIPlayer, self).__init__(inputPlayerId, "Nettie")
         self.resetPlayerData()
-        self.hiddenNetwork = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]
-        self.outputNetwork = [[0, 0], [0, 0], [0, 0]]
-        self.biasWeights = []
-        self.setWeights()
+        # self.hiddenNetwork = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]
+        # self.outputNetwork = [[0, 0], [0, 0], [0, 0]]
+        # self.biasWeights = []
+        # self.setWeights()
         # printWeights(self)
+        self.hiddenNetwork = [[0, 1.3324, -1.1546, 0.1127], [0, 0.3683, 0.1637, -0.6542], [0, -0.3298, 0.3555, 0.1057], [0, -1.3252, 0.2899, 0.1528], [0, -0.0549, 0.9299, 0.5141]]
+        self.outputNetwork = [[0, 1.1102], [0, -1.6929], [0, -0.6007]]
+        self.biasWeights = [-0.2783, -0.5767, -2.4206, 0.1364]
         self.learningRate = 0.1
+        # self.outFileLocation = "../neuralNetwork.txt"
+        # self.outFile = open(self.outFileLocation, "w+")
+        # sys.stdout = self.outFile  # redirect stdout
 
     def setWeights(self):
         # set biases
@@ -153,13 +159,12 @@ class AIPlayer(Player):
     #
     def registerWin(self, hasWon):
         if hasWon:
-            
             print("we won!")
-            printWeights(self)
+            # rintWeights(self)
         
         else:
             print("we lost :( ")
-            printWeights(self)
+            # printWeights(self)
 
 #in the current version, only evaluates proximity to winning via food collection
 def heuristicStepsToGoal(currentState):
@@ -237,7 +242,7 @@ def stepsToAntHillGoal(currentState):
 #uses MoveNode objects to represent the outcome of all possible moves
 #returns the move associated with the MoveNode that has the lowest (best) utility
 def getUtilityMove(self, currentState):
-    evalFinal(self, currentState)
+    # evalFinal(self, currentState)
     
     moves = listAllLegalMoves(currentState)
 
@@ -245,8 +250,8 @@ def getUtilityMove(self, currentState):
 
     for move in moves:
         nextState = getNextState(currentState, move)
-        stateUtility = heuristicStepsToGoal(nextState)
-        #stateUtility = (getOutput(self, nextState)) * 100
+        #stateUtility = heuristicStepsToGoal(nextState)
+        stateUtility = (getOutput(self, nextState))*100
         node = MoveNode(move, nextState)
         node.setUtility(stateUtility)
         moveNodes.append(node)
@@ -324,8 +329,10 @@ def setInputs(self, currentState):
         else:
             enemy = PLAYER_ONE
 
-        myInv = getCurrPlayerInventory(currentState)
-        foodScore = myInv.foodCount
+        # myInv = getCurrPlayerInventory(currentState)
+        # foodScore = myInv.foodCount
+
+        foodGoal = stepsToFoodGoal(currentState)
 
         enQueen = getAntList(currentState, enemy, (QUEEN,))[0]
 
@@ -337,7 +344,7 @@ def setInputs(self, currentState):
         myHill = getConstrList(currentState, me, (ANTHILL,))[0]
         # myHillHealth = myHill.captureHealth
 
-        self.hiddenNetwork[0][0] = foodScore/11
+        self.hiddenNetwork[0][0] = foodGoal/100
         self.hiddenNetwork[1][0] = enQueen.health/10
         self.hiddenNetwork[2][0] = enHill.captureHealth/3
         self.hiddenNetwork[3][0] = myQueen.health/10
@@ -426,11 +433,12 @@ def backPropagation(self, currentState, error, output):
 def evalFinal(self, currentState):
         NN_util = getOutput(self, currentState)
         trainingUtil = (heuristicStepsToGoal(currentState))/100
-        error = NN_util - trainingUtil
+        #error = NN_util - trainingUtil
+        error = trainingUtil - NN_util
         print("Error is: " + str(error))
 
-        if error < 0.03:
-            printWeights(self)
+        if abs(error) < 0.03:
+             printWeights(self)
 
         backPropagation(self, currentState, error, NN_util)
         
@@ -446,6 +454,12 @@ def printWeights(self):
         for k in range(len(self.outputNetwork)):
             for m in range(1, len(self.outputNetwork[0])):
                 print(str(self.outputNetwork[k][m]))
+
+        print()
+
+        print("Bias weights: ")
+        for h in range(len(self.biasWeights)):
+            print(str(self.biasWeights[h]))
 
 class MoveNode():
     
