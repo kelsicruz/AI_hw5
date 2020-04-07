@@ -13,12 +13,9 @@ import math
 #global vars
 bestFood = None
 avgDistToFoodPoint = None
-hiddenNetwork = [[]]
-outputNetwork = [[]]
-biasWeights = [0, 0, 0]
-learningRate = 0.1
 e = 2.71828
 ##
+
 #AIPlayer
 #Description: The responsbility of this class is to interact with the game by
 #deciding a valid move based on a given game state.  This class has methods
@@ -30,8 +27,42 @@ e = 2.71828
 ##
 class AIPlayer(Player):
     def __init__(self, inputPlayerId):
-        super(AIPlayer, self).__init__(inputPlayerId, "UtilityAgent_gieseman21_cruzk20")
+        super(AIPlayer, self).__init__(inputPlayerId, "Nettie")
         self.resetPlayerData()
+        self.hiddenNetwork = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]
+        self.outputNetwork = [[0, 0], [0, 0], [0, 0]]
+        self.biasWeights = []
+        self.setWeights()
+        # printWeights(self)
+        self.learningRate = 0.1
+
+    def setWeights(self):
+        # set biases
+        for i in range(4):
+            num = random.random()
+            if random.randint(0, 1) == 1:
+                self.biasWeights.append(num)
+            else:
+                self.biasWeights.append(-1*num)
+        
+        # set normal weights
+        for j in range(len(self.hiddenNetwork)):
+            for k in range(1, len(self.hiddenNetwork[j])):
+                num = random.random()
+                if random.randint(0, 1) == 1:
+                    self.hiddenNetwork[j][k] = num
+                else:
+                    self.hiddenNetwork[j][k] = -1*num
+        
+        # set output network weights
+        for j in range(len(self.outputNetwork)):
+            for k in range(1, len(self.outputNetwork[j])):
+                num = random.random()
+                if random.randint(0, 1) == 1:
+                    self.outputNetwork[j][k] = num
+                else:
+                    self.outputNetwork[j][k] = -1*num
+
         
     def resetPlayerData(self):
         global bestFood
@@ -77,6 +108,7 @@ class AIPlayer(Player):
     #Return: The Move to be made
     ##
     def getMove(self, currentState):
+
         me = currentState.whoseTurn
         workerAnts = getAntList(currentState, me, (WORKER,))
         global bestFood
@@ -97,7 +129,7 @@ class AIPlayer(Player):
         if (bestFood == None and avgDistToFoodPoint == None):
             assignGlobalVars(currentState, self.myTunnel, self.myHill)
 
-        selectedMove = getMove(currentState)
+        selectedMove = getUtilityMove(self, currentState)
             
         return selectedMove
     
@@ -120,8 +152,14 @@ class AIPlayer(Player):
     # This agent doens't learn
     #
     def registerWin(self, hasWon):
-        #method templaste, not implemented
-        pass
+        if hasWon:
+            
+            print("we won!")
+            printWeights(self)
+        
+        else:
+            print("we lost :( ")
+            printWeights(self)
 
 #in the current version, only evaluates proximity to winning via food collection
 def heuristicStepsToGoal(currentState):
@@ -130,7 +168,7 @@ def heuristicStepsToGoal(currentState):
 
     #if a state has a dead queen, it should be avoided!!!
     if (myQueen.health == 0):
-        return 99999999
+        return 100
 
     stepsToGoal = stepsToFoodGoal(currentState)
     
@@ -156,7 +194,7 @@ def stepsToFoodGoal(currentState):
 
     #cant collect food without workers
     if (len(workerAnts) == 0):
-        return 99999999
+        return 100
 
     #in assignGlobalVars, we assigned avgDistToFoodPoint
     #we multiply that by the number of food points we need
@@ -165,7 +203,7 @@ def stepsToFoodGoal(currentState):
         stepsToFoodGoal += avgDistToFoodPoint
     
     #to that, we add the distance from scoring a food point of the ant that is closest to scoring one
-    minStepsToFoodPoint = 99999999
+    minStepsToFoodPoint = 100
     for worker in workerAnts:
         temp = stepsToFoodPoint(currentState, worker)
         if (temp < minStepsToFoodPoint):
@@ -198,7 +236,9 @@ def stepsToAntHillGoal(currentState):
     
 #uses MoveNode objects to represent the outcome of all possible moves
 #returns the move associated with the MoveNode that has the lowest (best) utility
-def getMove(currentState):
+def getUtilityMove(self, currentState):
+    evalFinal(self, currentState)
+    
     moves = listAllLegalMoves(currentState)
 
     moveNodes = []
@@ -206,6 +246,7 @@ def getMove(currentState):
     for move in moves:
         nextState = getNextState(currentState, move)
         stateUtility = heuristicStepsToGoal(nextState)
+        #stateUtility = (getOutput(self, nextState)) * 100
         node = MoveNode(move, nextState)
         node.setUtility(stateUtility)
         moveNodes.append(node)
@@ -217,7 +258,7 @@ def getMove(currentState):
 
 #returns the MoveNode with the lowest (best) utility given a list of MoveNodes
 def bestMove(moveNodes):
-    bestNodeUtility = 99999999
+    bestNodeUtility = 100
     bestNode = moveNodes[0]
     for moveNode in moveNodes:
         if (moveNode.utility < bestNodeUtility):
@@ -276,6 +317,136 @@ def getTotalEnemyHealth(currentState):
         
     return totalEnemyHealth
 
+def setInputs(self, currentState):
+        me = currentState.whoseTurn
+        if (me == PLAYER_ONE):
+            enemy = PLAYER_TWO
+        else:
+            enemy = PLAYER_ONE
+
+        myInv = getCurrPlayerInventory(currentState)
+        foodScore = myInv.foodCount
+
+        enQueen = getAntList(currentState, enemy, (QUEEN,))[0]
+
+        enHill = getConstrList(currentState, enemy, (ANTHILL,))[0]
+
+        myQueen = getAntList(currentState, me, (QUEEN,))[0]
+        # myQueenHealth = myQueen.health
+
+        myHill = getConstrList(currentState, me, (ANTHILL,))[0]
+        # myHillHealth = myHill.captureHealth
+
+        self.hiddenNetwork[0][0] = foodScore/11
+        self.hiddenNetwork[1][0] = enQueen.health/10
+        self.hiddenNetwork[2][0] = enHill.captureHealth/3
+        self.hiddenNetwork[3][0] = myQueen.health/10
+        self.hiddenNetwork[4][0] = myHill.captureHealth/3
+
+    
+def getOutput(self, currentState):
+
+        setInputs(self, currentState)
+
+        me = currentState.whoseTurn
+        if (me == PLAYER_ONE):
+            enemy = PLAYER_TWO
+        else :
+            enemy = PLAYER_ONE
+
+        x1 = 1 * self.biasWeights[0]
+        x2 = 1 * self.biasWeights[1]
+        x3 = 1 * self.biasWeights[2]
+
+        for i in range(len(self.hiddenNetwork)):
+            x1 += self.hiddenNetwork[i][0] * self.hiddenNetwork[i][1]
+        
+        for i in range(len(self.hiddenNetwork)):
+            x2 += self.hiddenNetwork[i][0] * self.hiddenNetwork[i][2]
+
+        for i in range(len(self.hiddenNetwork)):
+            x3 += self.hiddenNetwork[i][0] * self.hiddenNetwork[i][3]
+
+        self.outputNetwork[0][0] = sigmoid(x1)
+        self.outputNetwork[1][0] = sigmoid(x2)
+        self.outputNetwork[2][0] = sigmoid(x3)
+
+
+        output = 1 * self.biasWeights[3]
+
+        for i in range(len(self.outputNetwork)):
+            output += self.outputNetwork[i][0] * self.outputNetwork[i][1]
+
+
+        return sigmoid(output)
+
+
+# def evaluateState(self, currentState):
+#         output = 1 * self.biasWeights[2]
+
+#         for i in range(len(self.outputNetwork)):
+#             output += self.outputNetwork[i][0] * self.outputNetwork[i][1]
+
+#         return sigmoid(output)
+    
+def sigmoid(x):
+        return (1/(1 + e**(-x)))
+    
+def backPropagation(self, currentState, error, output):
+        # might change 1 later
+
+        errorTerm = error * output * (1 - output)
+
+        topError = errorTerm * self.outputNetwork[0][1]
+        bottomError = errorTerm * self.outputNetwork[1][1]
+
+        topErrorTerm = topError * self.outputNetwork[0][0] * ( 1 - self.outputNetwork[0][0] )
+        bottomErrorTerm = bottomError * self.outputNetwork[1][0] * ( 1 - self.outputNetwork[1][0] )
+        
+        # # may need to fix last part in parens
+        # for i in range(len(self.hiddenNetwork)):
+        #     for j in range(len(1, self.hiddenNetwork)):
+        #         # self.hiddenNetwork[i][j] += self.learningRate * topError * ( output * (1 - output) * self.outputNetwork[0][0] )
+        #         self.hiddenNetwork[i][]
+
+        for i in range(len(self.hiddenNetwork)):
+            self.hiddenNetwork[i][1] += self.learningRate * topErrorTerm * self.hiddenNetwork[i][0]
+        self.biasWeights[0] += self.learningRate * topErrorTerm * 1
+        
+        for j in range(len(self.hiddenNetwork)):
+            self.hiddenNetwork[j][2] += self.learningRate * bottomErrorTerm * self.hiddenNetwork[j][0]
+        self.biasWeights[1] += self.learningRate * bottomErrorTerm * 1
+        
+        for k in range(len(self.outputNetwork)):
+            self.outputNetwork[k][1] += self.learningRate * errorTerm * self.outputNetwork[k][0]
+        self.biasWeights[2] += self.learningRate * errorTerm * 1
+
+
+
+def evalFinal(self, currentState):
+        NN_util = getOutput(self, currentState)
+        trainingUtil = (heuristicStepsToGoal(currentState))/100
+        error = NN_util - trainingUtil
+        print("Error is: " + str(error))
+
+        if error < 0.03:
+            printWeights(self)
+
+        backPropagation(self, currentState, error, NN_util)
+        
+def printWeights(self):
+        print("Weights for hidden network: ")
+        for i in range(len(self.hiddenNetwork)):
+            for j in range(1, len(self.hiddenNetwork[0])):
+                print(str(self.hiddenNetwork[i][j]))
+
+        print()
+        
+        print("Weights for output network: ")
+        for k in range(len(self.outputNetwork)):
+            for m in range(1, len(self.outputNetwork[0])):
+                print(str(self.outputNetwork[k][m]))
+
 class MoveNode():
     
     def __init__(self, move, state):
@@ -290,74 +461,7 @@ class MoveNode():
 
     def __str__(self):
         return "Move: " + str(self.move) + ", Utility: " + str(self.utility)
-    
-    def initHiddenNetwork(self, currentState):
-        me = currentState.whoseTurn
-        if (me == PLAYER_ONE):
-            enemy = PLAYER_TWO
-        else :
-            enemy = PLAYER_ONE
 
-        myInv = getCurrPlayerInventory(currentState)
-        foodScore = myInv.foodCount
-
-        enQueen = getAntList(currentState, enemy, (QUEEN,))
-
-        enHill = getConstrList(currentState, enemy, (ANTHILL,))[0]
-
-        myQueen = getAntList(currentState, me, (QUEEN,))[0]
-        # myQueenHealth = myQueen.health
-
-        myHill = getConstrList(currentState, me, (ANTHILL,))[0]
-        # myHillHealth = myHill.captureHealth
-
-        return hiddenNetwork[[foodScore/11, 2, 0], [enQueen.health/10, -1, 0], [enHill.captureHealth/3, -1, 0], [myQueen.health/10, 0, 1], [myHill.captureHealth/3], 0, 1]
-    
-    def initOutputNetwork(self, currentState, hiddenNetwork):
-        initHiddenNetwork(self, currentState)
-
-        me = currentState.whoseTurn
-        if (me == PLAYER_ONE):
-            enemy = PLAYER_TWO
-        else :
-            enemy = PLAYER_ONE
-
-        x1 = 1 * biasWeights[0]
-        x2 = 1 * biasWeights[1]
-
-        for i in range(len(hiddenNetwork)):
-            x1 += hiddenNetwork[i][0] * hiddenNetwork[i][1]
-        
-        for i in range(len(hiddenNetwork)):
-            x2 += hiddenNetwork[i][0] * hiddenNetwork[i][2]
-
-        return outputNetwork[[sigmoid(self, x1), 1], [sigmoid(self, x2), 1]]
-
-    def evaluateState(self, currentState):
-        output = 1 * biasWeights[2]
-
-        for i in range(len(outputNetwork)):
-            output += outputNetwork[i][0] * outputNetwork[i][1]
-
-        return sigmoid(self, output)
-    
-    def sigmoid(self, x):
-        return 1/(1 + e^(-x))
-    
-    def backPropagation(self, currentState):
-        # might change 1 later
-        netOutput = evaluateState(self, currentState)
-        error = 1 - netOutput
-        print(str(error))
-
-        errorTerm = error * netOutput * (1 - netOutput)
-
-        topError = errorTerm * outputNetwork[0][1]
-        bottomError = errorTerm * outputNetwork[1][1]
-        
-        # may need to fix last part in parens
-        for i in range(len(hiddenNetwork)):
-            hiddenNetwork[i][1] += learningRate * topError * ( netOutput * (1 - netOutput) * outputNetwork[0][0] )
 
 
         # commenting out for now
